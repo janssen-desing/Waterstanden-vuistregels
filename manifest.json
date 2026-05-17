@@ -1,0 +1,10 @@
+{
+  "name": "Rijn Waterstanden",
+  "short_name": "Rijn",
+  "start_url": ".",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#02060f",
+  "background_color": "#02060f",
+  "orientation": "portrait"
+}
