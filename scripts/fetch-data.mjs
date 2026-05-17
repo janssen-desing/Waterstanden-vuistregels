@@ -12,8 +12,8 @@ const STATIONS = [
   { key: "oestrich",         naam: "Oestrich",   land: "🇩🇪", slug: "oestrich" },
   { key: "kaub",             naam: "Kaub",       land: "🇩🇪", slug: "kaub" },
   { key: "koblenz",          naam: "Koblenz",    land: "🇩🇪", slug: "koblenz" },
-  { key: "koeln",            naam: "Köln",       land: "🇩🇪", slug: "koeln" },
-  { key: "duesseldorf",      naam: "Düsseldorf", land: "🇩🇪", slug: "duesseldorf" },
+  { key: "koeln",            naam: "Köln",       land: "🇩🇪", slug: "KÖLN" },
+  { key: "duesseldorf",      naam: "Düsseldorf", land: "🇩🇪", slug: "DÜSSELDORF" },
   { key: "duisburg-ruhrort", naam: "Duisburg",   land: "🇩🇪", slug: "duisburg-ruhrort" },
   { key: "wesel",            naam: "Wesel",      land: "🇩🇪", slug: "wesel" },
 ];
