@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#02060f">
+<title>Rijn Waterstanden — installeer</title>
+<style>
+  :root {
+    --accent: #22d3ee;
+    --accent-dim: rgba(34, 211, 238, 0.6);
+    --text: #f1f5f9;
+    --text-dim: #94a3b8;
+    --text-faint: #64748b;
+    --border: rgba(255,255,255,0.06);
+    --serif: "Iowan Old Style", "Charter", "Georgia", serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    background: radial-gradient(ellipse at top, #0c1e3a 0%, #050b1a 60%, #02060f 100%);
+    color: var(--text); font-family: var(--sans);
+    min-height: 100vh;
+  }
+  .container { max-width: 440px; margin: 0 auto; padding: 32px 20px; }
+  .icon-wrap {
+    display: flex; justify-content: center; margin-bottom: 24px;
+  }
+  .icon-wrap img {
+    width: 96px; height: 96px;
+    border-radius: 22px;
+    box-shadow: 0 8px 32px rgba(34, 211, 238, 0.2);
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 300; font-size: 32px;
+    text-align: center; margin: 0 0 6px; letter-spacing: -0.01em;
+  }
+  .subtitle {
+    text-align: center; color: var(--text-faint);
+    font-size: 14px; margin: 0 0 28px;
+  }
+
+  .qr-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 20px;
+    margin-bottom: 24px;
+    text-align: center;
+  }
+  .qr-card .label {
+    font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--text-faint); margin-bottom: 14px;
+  }
+  #qr {
+    display: inline-block;
+    background: #fff; padding: 12px; border-radius: 14px;
+    line-height: 0;
+  }
+  #qr svg { display: block; }
+  .url-box {
+    margin-top: 14px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 12px; color: var(--accent-dim);
+    word-break: break-all;
+    user-select: all;
+  }
+
+  .steps {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 4px 0;
+  }
+  .step {
+    display: flex; gap: 14px; padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .step:last-child { border-bottom: none; }
+  .step-num {
+    flex-shrink: 0;
+    width: 26px; height: 26px;
+    background: var(--accent);
+    color: #04121f;
+    font-weight: 600; font-size: 13px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-text { font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+  .step-text b { color: var(--text); font-weight: 500; }
+
+  footer {
+    margin-top: 26px;
+    text-align: center;
+    font-size: 11px; color: var(--text-faint);
+    line-height: 1.6;
+  }
+  footer a { color: var(--accent-dim); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="icon-wrap">
+    <img src="icon-180.png" alt="Rijn Waterstanden">
+  </div>
+
+  <h1>Rijn Waterstanden</h1>
+  <p class="subtitle">Installeer als app op je iPhone</p>
+
+  <div class="qr-card">
+    <div class="label">Scan met iPhone-camera</div>
+    <div id="qr">Laden…</div>
+    <div class="url-box" id="urlbox">https://example.com</div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-text">Scan de QR-code met je iPhone-camera, of open de URL in <b>Safari</b>.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-text">Tik op de <b>Share-knop</b> onderaan (vierkant met pijl omhoog).</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-text">Scroll naar <b>"Zet op beginscherm"</b> → <b>Voeg toe</b>.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-text">App-icoon staat nu op je home screen. Eén tik = openen. Werkt ook offline (toont laatst opgehaalde data).</div>
+    </div>
+  </div>
+
+  <footer>
+    Niet beschikbaar in de App Store — dit is een gratis, open web-app.<br>
+    Bron: pegelonline.wsv.de · wasserkarte.net
+  </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+  // Gebruik de URL van deze pagina, maar zonder /share.html erin
+  const here = new URL(window.location.href);
+  here.pathname = here.pathname.replace(/share\.html$/, "");
+  here.search = "";
+  here.hash = "";
+  const appUrl = here.toString();
+
+  document.getElementById("urlbox").textContent = appUrl;
+
+  try {
+    const qr = qrcode(0, "M");
+    qr.addData(appUrl);
+    qr.make();
+    document.getElementById("qr").innerHTML = qr.createSvgTag({ cellSize: 6, margin: 0 });
+  } catch (e) {
+    document.getElementById("qr").textContent = "QR kon niet worden geladen — gebruik de URL hieronder";
+  }
+</script>
+</body>
+</html>
