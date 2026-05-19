@@ -2,8 +2,8 @@ name: Update waterstanden
 
 on:
   schedule:
-    # Elke 30 minuten. GitHub kan een paar minuten vertraging hebben bij hoge belasting.
-    - cron: "*/30 * * * *"
+    # Elke 5 minuten. GitHub kan een paar minuten vertraging hebben bij hoge belasting.
+    - cron: "*/5 * * * *"
   workflow_dispatch:        # handmatig kunnen triggeren vanuit de Actions-tab
   push:
     branches: [main]
