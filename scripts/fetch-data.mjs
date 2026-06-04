@@ -1,18 +1,25 @@
 #!/usr/bin/env node
 // scripts/fetch-data.mjs
 //
-// Haalt waterstanden op van PEGELONLINE + wasserkarte.net en schrijft data.json.
-// Self-healing: bij een 404 op een slug probeert dit script automatisch
-// de juiste slug te ontdekken via de PEGELONLINE-stationslijst.
+// Haalt waterstanden op en schrijft data.json.
+// Twee bronnen:
+//   1. PEGELONLINE (WSV-DE)  -> Duitse + Zwitserse Rijnpegels  (simpele GET-JSON)
+//   2. RWS WaterWebservices  -> Nederlandse pegels (Lek, Maas, Waal) (POST-JSON, ddapi20)
+//
+// PEGELONLINE blijft self-healing: bij 404 zoekt het script de juiste slug op.
 
 import { writeFile } from "node:fs/promises";
 
-const STATIONS = [
+// ---------------------------------------------------------------------------
+// 1. PEGELONLINE-stations (Duitsland + Zwitserland)
+// ---------------------------------------------------------------------------
+const PEG_STATIONS = [
+  { key: "basel",            naam: "Basel",      land: "🇨🇭", slug: "Basel-Rheinhalle" },
   { key: "maxau",            naam: "Maxau",      land: "🇩🇪", slug: "maxau" },
   { key: "oestrich",         naam: "Oestrich",   land: "🇩🇪", slug: "oestrich" },
   { key: "kaub",             naam: "Kaub",       land: "🇩🇪", slug: "kaub" },
   { key: "koblenz",          naam: "Koblenz",    land: "🇩🇪", slug: "koblenz" },
-  { key: "koeln",            naam: "Köln",       land: "🇩🇪", slug: "KÖLN" },
+  { key: "koeln",            naam: "Keulen",     land: "🇩🇪", slug: "KÖLN" },
   { key: "duesseldorf",      naam: "Düsseldorf", land: "🇩🇪", slug: "DÜSSELDORF" },
   { key: "duisburg-ruhrort", naam: "Duisburg",   land: "🇩🇪", slug: "duisburg-ruhrort" },
   { key: "wesel",            naam: "Wesel",      land: "🇩🇪", slug: "wesel" },
@@ -20,7 +27,6 @@ const STATIONS = [
 
 const PEG_BASE = "https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations";
 const ALL_STATIONS_URL = `${PEG_BASE}.json?waters=RHEIN`;
-const WASSERKARTE_URL = "https://wasserkarte.net/gids/waterstand.php?plaats=Nijmegen-haven";
 const UA = "rijn-waterstanden-bot/1.0 (https://github.com)";
 
 async function fetchJson(url) {
@@ -29,60 +35,35 @@ async function fetchJson(url) {
   return r.json();
 }
 
-async function fetchText(url) {
-  const r = await fetch(url, { headers: {
-    "User-Agent": "Mozilla/5.0 (compatible; rijn-waterstanden-bot/1.0)",
-    "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
-  }});
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.text();
-}
-
 let allStationsCache = null;
 async function getAllRhineStations() {
   if (allStationsCache !== null) return allStationsCache;
-  try {
-    allStationsCache = await fetchJson(ALL_STATIONS_URL);
-  } catch (e) {
-    console.warn("Kon stationslijst niet ophalen:", e.message);
-    allStationsCache = [];
-  }
+  try { allStationsCache = await fetchJson(ALL_STATIONS_URL); }
+  catch (e) { console.warn("Kon stationslijst niet ophalen:", e.message); allStationsCache = []; }
   return allStationsCache;
 }
 
-// Self-heal: probeer de juiste slug te vinden in de stationslijst
 async function discoverSlug(intended) {
   const all = await getAllRhineStations();
   if (!all.length) return null;
   const lc = intended.toLowerCase();
   const norm = (s) => (s || "").toLowerCase().replace(/[-_\s]/g, "");
-
-  // 1. Exacte match op shortname (case-insensitive)
   let m = all.find(s => (s.shortname || "").toLowerCase() === lc);
   if (m) return { slug: m.shortname, hoe: "exact" };
-
-  // 2. Genormaliseerde match (zonder streepjes/spaties)
   m = all.find(s => norm(s.shortname) === norm(intended));
   if (m) return { slug: m.shortname, hoe: "genormaliseerd" };
-
-  // 3. Begint met
   m = all.find(s => (s.shortname || "").toLowerCase().startsWith(lc));
   if (m) return { slug: m.shortname, hoe: "prefix" };
-
-  // 4. Bevat
   m = all.find(s => (s.shortname || "").toLowerCase().includes(lc));
   if (m) return { slug: m.shortname, hoe: "substring" };
-
-  // 5. Match op longname
   m = all.find(s => (s.longname || "").toLowerCase().includes(lc));
   if (m) return { slug: m.shortname, hoe: "longname" };
-
   return null;
 }
 
 async function tryFetchSlug(slug) {
-  const cur  = await fetchJson(`${PEG_BASE}/${slug}/W/currentmeasurement.json`);
-  const hist = await fetchJson(`${PEG_BASE}/${slug}/W/measurements.json?start=P2D`).catch(() => []);
+  const cur  = await fetchJson(`${PEG_BASE}/${encodeURIComponent(slug)}/W/currentmeasurement.json`);
+  const hist = await fetchJson(`${PEG_BASE}/${encodeURIComponent(slug)}/W/measurements.json?start=P2D`).catch(() => []);
   return {
     slug,
     pegel: cur.value,
@@ -92,7 +73,7 @@ async function tryFetchSlug(slug) {
   };
 }
 
-async function fetchOneStation(station) {
+async function fetchPegStation(station) {
   try {
     const data = await tryFetchSlug(station.slug);
     return { ...station, ...data, error: null };
@@ -103,68 +84,122 @@ async function fetchOneStation(station) {
       try {
         const data = await tryFetchSlug(found.slug);
         console.log(`[${station.key}] ✓ hersteld via ${found.hoe}: '${station.slug}' → '${found.slug}'`);
-        return {
-          ...station, ...data, error: null,
-          slugFixed: `${station.slug} → ${found.slug} (${found.hoe})`,
-        };
-      } catch (e2) {
-        console.warn(`[${station.key}] ook '${found.slug}' faalde: ${e2.message}`);
+        return { ...station, ...data, error: null, slugFixed: `${station.slug} → ${found.slug} (${found.hoe})` };
+      } catch (e2) { console.warn(`[${station.key}] ook '${found.slug}' faalde: ${e2.message}`); }
+    }
+    return { ...station, pegel: null, timestamp: null, trend: 0, history: [], error: e1.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2. RWS-stations (Nederland) via ddapi20 WaterWebservices
+// ---------------------------------------------------------------------------
+const RWS_STATIONS = [
+  // Lek / Nederrijn (stuwpanden, benedenstrooms peil)
+  { key: "hagestein", naam: "Hagestein beneden", land: "🇳🇱", code: "hagestein.beneden" },
+  { key: "amerongen", naam: "Amerongen beneden", land: "🇳🇱", code: "amerongen.beneden" },
+  { key: "driel",     naam: "Driel beneden",     land: "🇳🇱", code: "driel.beneden" },
+  { key: "ijsselkop", naam: "IJsselkop",         land: "🇳🇱", code: "westervoort.ijsselkop" },
+  // Maas
+  { key: "lith",      naam: "Lith dorp",         land: "🇳🇱", code: "lith.beneden" },
+  // Waal
+  { key: "nijmegen",  naam: "Nijmegen",          land: "🇳🇱", code: "nijmegen.waal" },
+  { key: "tiel",      naam: "Tiel",              land: "🇳🇱", code: "tiel.waal" },
+];
+
+const RWS_OW = "https://ddapi20-waterwebservices.rijkswaterstaat.nl/ONLINEWAARNEMINGENSERVICES/OphalenWaarnemingen";
+
+function isoOffset(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  const tz = -d.getTimezoneOffset();
+  const s = tz >= 0 ? "+" : "-";
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.000${s}${p(Math.abs(tz)/60|0)}:${p(Math.abs(tz)%60)}`;
+}
+
+async function fetchRwsStation(station) {
+  const now = new Date();
+  const begin = new Date(now.getTime() - 6 * 3600 * 1000); // laatste 6 uur
+  const body = {
+    Locatie: { Code: station.code },
+    AquoPlusWaarnemingMetadata: {
+      AquoMetadata: { Compartiment: { Code: "OW" }, Grootheid: { Code: "WATHTE" }, ProcesType: "meting" },
+      WaarnemingMetadata: { OpdrachtgevendeInstantieLijst: ["RIKZMON_WAT"] },
+    },
+    Periode: { Begindatumtijd: isoOffset(begin), Einddatumtijd: isoOffset(now) },
+  };
+  try {
+    let r = await fetch(RWS_OW, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-API-KEY": "rijn-waterstanden" },
+      body: JSON.stringify(body),
+    });
+    // 204 = geen data met deze instantie-filter; probeer zonder instantie-filter
+    if (r.status === 204) {
+      delete body.AquoPlusWaarnemingMetadata.WaarnemingMetadata;
+      r = await fetch(RWS_OW, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-API-KEY": "rijn-waterstanden" },
+        body: JSON.stringify(body),
+      });
+    }
+    if (r.status === 204) throw new Error("geen recente meting (204)");
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+
+    // Verzamel alle metingen, neem de meest recente plausibele waarde, bouw history op.
+    const points = [];
+    for (const w of (j.WaarnemingenLijst || [])) {
+      for (const m of (w.MetingenLijst || [])) {
+        const v = m.Meetwaarde?.Waarde_Numeriek;
+        const q = m.WaarnemingMetadata?.Kwaliteitswaardecode
+               ?? m.WaarnemingMetadata?.KwaliteitswaardecodeLijst?.[0];
+        if (v == null || Math.abs(v) >= 99999) continue;          // hiaat (99) / onzin
+        if (q === "99") continue;
+        points.push({ t: m.Tijdstip, v });
       }
     }
+    if (!points.length) throw new Error("geen plausibele waarde");
+    points.sort((a, b) => (a.t < b.t ? -1 : 1));
+    const last = points[points.length - 1];
+    const prev = points.length > 1 ? points[points.length - 2] : null;
+    const trend = prev ? Math.sign(last.v - prev.v) : 0;
+
     return {
-      ...station, pegel: null, timestamp: null, trend: 0, history: [],
-      error: e1.message,
+      key: station.key, naam: station.naam, land: station.land, code: station.code,
+      pegel: last.v, timestamp: last.t, trend,
+      history: points.slice(-200),
+      error: null,
+    };
+  } catch (e) {
+    return {
+      key: station.key, naam: station.naam, land: station.land, code: station.code,
+      pegel: null, timestamp: null, trend: 0, history: [], error: e.message,
     };
   }
 }
 
-async function fetchNijmegen() {
-  const station = { key: "nijmegen", naam: "Nijmegen", land: "🇳🇱", waal: true, slug: null };
-  // Meerdere regex-patronen — als de site z'n opmaak verandert blijft er meestal eentje werken
-  const PATTERNS = [
-    /NAP[^\d-]{0,40}(-?\d+)\s*cm/i,
-    /Nijmegen[^\d-]{0,200}?(-?\d+)\s*cm/i,
-    /waterstand[^\d-]{0,100}?(-?\d+)\s*cm/i,
-    /(-?\d+)\s*cm\s*\(?\s*NAP/i,
-  ];
-  try {
-    const html = await fetchText(WASSERKARTE_URL);
-    for (const [i, pat] of PATTERNS.entries()) {
-      const m = html.match(pat);
-      if (m) {
-        const n = parseInt(m[1]);
-        if (Math.abs(n) < 3000) { // sanity check op plausibele cm-waarde
-          return {
-            ...station, pegel: n, timestamp: new Date().toISOString(),
-            trend: 0, history: [], error: null,
-            patternUsed: i,
-          };
-        }
-      }
-    }
-    throw new Error("geen plausibele waarde in HTML gevonden");
-  } catch (e) {
-    return { ...station, pegel: null, timestamp: null, trend: 0, history: [], error: e.message };
-  }
-}
-
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
 async function main() {
-  console.log("=== Rijn waterstanden fetch ===");
+  console.log("=== Rijn + NL waterstanden fetch ===");
   const t0 = Date.now();
 
   const results = await Promise.all([
-    ...STATIONS.map(s => fetchOneStation(s)),
-    fetchNijmegen(),
+    ...PEG_STATIONS.map(fetchPegStation),
+    ...RWS_STATIONS.map(fetchRwsStation),
   ]);
 
   const ok     = results.filter(r => !r.error);
   const fail   = results.filter(r =>  r.error);
-  const healed = results.filter(r => r.slugFixed);
+  const healed = results.filter(r =>  r.slugFixed);
   const dt = ((Date.now() - t0) / 1000).toFixed(1);
 
   console.log(`\nKlaar in ${dt}s · ${ok.length}/${results.length} OK · ${fail.length} fout · ${healed.length} hersteld`);
-  if (fail.length)   { console.log("\nFouten:");      fail.forEach(e => console.log(`  ${e.key}: ${e.error}`)); }
-  if (healed.length) { console.log("\nHersteld:");    healed.forEach(h => console.log(`  ${h.key}: ${h.slugFixed}`)); }
+  for (const r of results) {
+    const v = r.pegel != null ? String(Math.round(r.pegel)).padStart(5) : "  err";
+    console.log(`  ${String(r.key).padEnd(18)} ${v} cm  ${r.error ? "✗ "+r.error : ""}`);
+  }
 
   const output = {
     stations: results,
@@ -177,15 +212,7 @@ async function main() {
   await writeFile("data.json", JSON.stringify(output, null, 2));
   console.log("\n→ data.json geschreven");
 
-  // Faal alleen als élke station faalde (anders heeft de Action een
-  // succesvolle deploy en wordt de oude data.json niet onnodig overschreven)
-  if (ok.length === 0) {
-    console.error("Alle stations gefaald — exit 1");
-    process.exit(1);
-  }
+  if (ok.length === 0) { console.error("Alle stations gefaald — exit 1"); process.exit(1); }
 }
 
-main().catch(e => {
-  console.error("Fataal:", e);
-  process.exit(1);
-});
+main().catch(e => { console.error("Fataal:", e); process.exit(1); });
