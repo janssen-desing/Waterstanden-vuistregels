@@ -370,7 +370,7 @@
   <main id="main"></main>
 
   <footer>
-    Bron: pegelonline.wsv.de · wasserkarte.net<br>
+    Bron: pegelonline.wsv.de · waterinfo.rws.nl<br>
     Demo / hulpmiddel. Geen rechten of aansprakelijkheid aan te ontlenen.
   </footer>
 
@@ -386,6 +386,8 @@
 <script>
 // ---------- CONFIG ----------
 const DEFAULT_VR = {
+  // Rijn & Waal (PEGELONLINE): vuistregel = pegel ± waarde
+  "basel": -245,
   "maxau": -180,
   "oestrich": 110,
   "kaub": 100,
@@ -395,12 +397,21 @@ const DEFAULT_VR = {
   "duisburg-ruhrort": 20,
   "wesel": 80,
   "nijmegen": -260,
+  "tiel": 10,
+  // Lek (RWS, NAP-pegels)
+  "hagestein": 320,
+  "amerongen": -120,
+  "driel": -300,
+  "ijsselkop": -500,
+  // Maas (RWS, NAP-pegel)
+  "lith": 250,
 };
 const GROUPS = [
-  { titel: "Bovenrijn",    keys: ["maxau","oestrich","kaub"] },
-  { titel: "Middenrijn",   keys: ["koblenz","koeln","duesseldorf"] },
-  { titel: "Niederrhein",  keys: ["duisburg-ruhrort","wesel"] },
-  { titel: "Nederland",    keys: ["nijmegen"] },
+  { titel: "Rijn — boven/midden",  keys: ["basel","maxau","oestrich","kaub","koblenz","koeln"] },
+  { titel: "Niederrhein",          keys: ["duesseldorf","duisburg-ruhrort","wesel"] },
+  { titel: "Waal",                 keys: ["nijmegen","tiel"] },
+  { titel: "Lek / Nederrijn",      keys: ["hagestein","amerongen","driel","ijsselkop"] },
+  { titel: "Maas",                 keys: ["lith"] },
 ];
 const LS_VR_KEY = "rijn.vuistregels.v1";
 const LS_DATA_KEY = "rijn.lastdata.v1";
@@ -438,15 +449,17 @@ function formatUpdated(iso) {
 function freshnessClass(iso) {
   if (!iso) return "old";
   const diffMin = (Date.now() - new Date(iso)) / 60000;
-  if (diffMin < 40) return "fresh";   // script draait elke 30 min
-  if (diffMin < 90) return "stale";
+  if (diffMin < 15) return "fresh";   // script draait elke 5 min
+  if (diffMin < 45) return "stale";
   return "old";
 }
 function displayName(key) {
   return ({
-    "maxau":"Maxau","oestrich":"Oestrich","kaub":"Kaub","koblenz":"Koblenz",
-    "koeln":"Köln","duesseldorf":"Düsseldorf","duisburg-ruhrort":"Duisburg",
-    "wesel":"Wesel","nijmegen":"Nijmegen"
+    "basel":"Basel","maxau":"Maxau","oestrich":"Oestrich","kaub":"Kaub","koblenz":"Koblenz",
+    "koeln":"Keulen","duesseldorf":"Düsseldorf","duisburg-ruhrort":"Duisburg","wesel":"Wesel",
+    "nijmegen":"Nijmegen","tiel":"Tiel",
+    "hagestein":"Hagestein beneden","amerongen":"Amerongen beneden","driel":"Driel beneden",
+    "ijsselkop":"IJsselkop","lith":"Lith dorp"
   })[key] || key;
 }
 function escapeHtml(s) {
@@ -591,6 +604,7 @@ function updateLastUpdateUI() {
 // PEGELONLINE-stations die we direct vanuit de browser proberen op te halen.
 // Werkt als PEGELONLINE CORS toelaat (meestal wel). Anders fallback naar data.json.
 const DIRECT_STATIONS = [
+  { key: "basel",            slug: "Basel-Rheinhalle" },
   { key: "maxau",            slug: "maxau" },
   { key: "oestrich",         slug: "oestrich" },
   { key: "kaub",             slug: "kaub" },
@@ -753,7 +767,7 @@ function openInfoSheet() {
 
     <div class="info-section">
       <h3>Updates</h3>
-      <p>Een GitHub Action haalt de data elke 30 minuten op en schrijft 'm naar <code>data.json</code> in de repo. De update-knop herlaadt dat bestand met cache-bust.</p>
+      <p>Een GitHub Action haalt de data elke 5 minuten op en schrijft 'm naar <code>data.json</code> in de repo. De update-knop herlaadt dat bestand met cache-bust.</p>
       <p>Wil je een directe live-fetch? Trigger de Action handmatig in GitHub: Actions → Update waterstanden → Run workflow.</p>
     </div>
 
@@ -765,8 +779,8 @@ function openInfoSheet() {
     <div class="info-section">
       <h3>Bronnen</h3>
       <ul>
-        <li>pegelonline.wsv.de — Duitse stations (officiële WSV-API)</li>
-        <li>wasserkarte.net — Nijmegen-haven</li>
+        <li>pegelonline.wsv.de — Rijn: Basel (CH) + Duitse pegels (WSV-API)</li>
+        <li>waterinfo.rws.nl — NL pegels: Lek, Maas, Waal (Rijkswaterstaat)</li>
       </ul>
     </div>
 
